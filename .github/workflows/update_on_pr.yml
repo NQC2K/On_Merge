@@ -3,8 +3,7 @@ name: Update Commit Info on PR
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches:
-      - dev
+    branches: [dev]
     paths:
       - 'pipeline/workflows/synthetic_data_bank.yml'
       - 'src/syntheticdatabank/01_Generate_Structured_Data.ipynb'
@@ -20,13 +19,16 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+      - name: Clone PR branch manually
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone \
+            --depth 0 \
+            https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.event.pull_request.head.repo.full_name }}.git
+
+          cd $(basename "${{ github.event.pull_request.head.repo.full_name }}")
+          git checkout ${{ github.event.pull_request.head.ref }}
 
       - name: Get latest commit info
         id: commit_info
@@ -43,16 +45,6 @@ jobs:
           echo "author_name=$COMMIT_AUTHOR_NAME" >> $GITHUB_OUTPUT
           echo "author_email=$COMMIT_AUTHOR_EMAIL" >> $GITHUB_OUTPUT
 
-          echo "Latest commit: $COMMIT_ID"
-          echo "Message: $COMMIT_MSG"
-          echo "DateTime: $COMMIT_DATETIME"
-          echo "Author: $COMMIT_AUTHOR_NAME <$COMMIT_AUTHOR_EMAIL>"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Update notebook with commit info
         env:
           COMMIT_ID: ${{ steps.commit_info.outputs.commit_id }}
@@ -60,63 +52,33 @@ jobs:
           COMMIT_DATETIME: ${{ steps.commit_info.outputs.commit_datetime }}
         run: |
           python3 << 'EOF'
-          import json
-          import os
+          import json, os
 
           notebook_path = 'src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb'
 
-          # Read the notebook
           with open(notebook_path, 'r', encoding='utf-8') as f:
               notebook = json.load(f)
 
-          # Get commit info from environment variables
-          commit_id = os.environ['COMMIT_ID']
-          commit_msg = os.environ['COMMIT_MSG'].replace('"', '\\"')  # Escape quotes
-          commit_datetime = os.environ['COMMIT_DATETIME']
-
-          # Find and update the cell with commit variables
           for cell in notebook['cells']:
-              if 'source' in cell:
-                  source = ''.join(cell['source']) if isinstance(cell['source'], list) else cell['source']
-                  if 'commit_id = ""' in source and 'commit_msg = ""' in source and 'commit_datetime = ""' in source:
-                      # Update the cell source
-                      new_source = [
-                          f'commit_id = "{commit_id}"\n',
-                          f'commit_msg = "{commit_msg}"\n',
-                          f'commit_datetime = "{commit_datetime}"\n'
-                      ]
-                      cell['source'] = new_source
-                      print(f"Updated commit info in notebook:")
-                      print(f"  commit_id: {commit_id}")
-                      print(f"  commit_msg: {commit_msg}")
-                      print(f"  commit_datetime: {commit_datetime}")
-                      break
+              source = ''.join(cell.get('source', []))
+              if 'commit_id = ""' in source:
+                  cell['source'] = [
+                      f'commit_id = "{os.environ["COMMIT_ID"]}"\n',
+                      f'commit_msg = "{os.environ["COMMIT_MSG"].replace(chr(34), r\"\\\"\")}"\n',
+                      f'commit_datetime = "{os.environ["COMMIT_DATETIME"]}"\n'
+                  ]
+                  break
 
-          # Write the updated notebook
           with open(notebook_path, 'w', encoding='utf-8') as f:
               json.dump(notebook, f, indent=1, ensure_ascii=False)
-              f.write('\n')  # Add trailing newline
-
-          print("Notebook updated successfully")
+              f.write('\n')
           EOF
 
-      - name: Check for changes
-        id: check_changes
-        run: |
-          if git diff --quiet src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No changes to commit"
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Changes detected"
-          fi
-
       - name: Commit and push changes
-        if: steps.check_changes.outputs.changed == 'true'
         run: |
-          git config --local user.email "${{ steps.commit_info.outputs.author_email }}"
-          git config --local user.name "${{ steps.commit_info.outputs.author_name }}"
+          git config user.name "${{ steps.commit_info.outputs.author_name }}"
+          git config user.email "${{ steps.commit_info.outputs.author_email }}"
 
           git add src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb
-          git commit -m "chore: update commit info in Synthetic_Data_On_Merge.ipynb [skip ci]"
+          git commit -m "chore: update commit info in Synthetic_Data_On_Merge.ipynb [skip ci]" || exit 0
           git push
