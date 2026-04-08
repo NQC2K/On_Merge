@@ -36,14 +36,10 @@ jobs:
           COMMIT_ID=$(git rev-parse HEAD)
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
           COMMIT_DATETIME=$(git log -1 --pretty=%cI)
-          COMMIT_AUTHOR_NAME=$(git log -1 --pretty=%an)
-          COMMIT_AUTHOR_EMAIL=$(git log -1 --pretty=%ae)
 
           echo "commit_id=$COMMIT_ID" >> $GITHUB_OUTPUT
           echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
           echo "commit_datetime=$COMMIT_DATETIME" >> $GITHUB_OUTPUT
-          echo "author_name=$COMMIT_AUTHOR_NAME" >> $GITHUB_OUTPUT
-          echo "author_email=$COMMIT_AUTHOR_EMAIL" >> $GITHUB_OUTPUT
 
       - name: Update notebook with commit info
         working-directory: ${{ github.event.pull_request.head.repo.name }}
@@ -60,7 +56,7 @@ jobs:
           with open(notebook_path, 'r', encoding='utf-8') as f:
               notebook = json.load(f)
 
-          # ✅ Always update the first cell that defines commit_id
+          # ✅ Always overwrite the commit info cell
           for cell in notebook.get('cells', []):
               source = ''.join(cell.get('source', []))
               if 'commit_id =' in source:
@@ -79,9 +75,10 @@ jobs:
       - name: Commit and push changes
         working-directory: ${{ github.event.pull_request.head.repo.name }}
         run: |
-          git config user.name "${{ steps.commit_info.outputs.author_name }}"
-          git config user.email "${{ steps.commit_info.outputs.author_email }}"
+          # ✅ Force commit to show as GitHub Actions
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb
-          git commit -m "Git Action: auto-update commit info in Synthetic_Data_On_Merge.ipynb" || exit 0
+          git commit -m "Auto-update commit info in Synthetic_Data_On_Merge.ipynb" || exit 0
           git push
