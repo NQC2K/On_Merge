@@ -1,0 +1,38 @@
+resources:
+  jobs:
+    synthetic_data_bank:
+      name: synthetic_data_bank
+      email_notifications:
+        no_alert_for_skipped_runs: true
+      notification_settings:
+        no_alert_for_skipped_runs: true
+        no_alert_for_canceled_runs: true
+      tasks:
+        - task_key: generate_structured_data
+          notebook_task:
+            notebook_path: src/syntheticdatabank/01_Generate_Structured_Data
+            source: GIT
+        - task_key: generate_unstructured_data
+          depends_on:
+            - task_key: generate_structured_data
+          notebook_task:
+            notebook_path: src/syntheticdatabank/02_Generate_Unstructured_Data
+            source: GIT
+        - task_key: generate_cmdb
+          depends_on:
+            - task_key: generate_unstructured_data
+          notebook_task:
+            notebook_path: src/syntheticdatabank/Synthetic_Data_CMDB
+            source: GIT
+        - task_key: update_table_descriptions
+          depends_on:
+            - task_key: generate_cmdb
+          notebook_task:
+            notebook_path: src/syntheticdatabank/Synthetic_Update_Descriptions
+            source: GIT
+      queue:
+        enabled: true
+      parameters:
+        - name: environment
+          default: dev
+      performance_target: PERFORMANCE_OPTIMIZED
