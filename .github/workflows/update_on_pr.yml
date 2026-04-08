@@ -83,5 +83,5 @@ jobs:
           git config user.email "${{ steps.commit_info.outputs.author_email }}"
 
           git add src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb
-          git commit -m "chore: update commit info in Synthetic_Data_On_Merge.ipynb [skip ci]" || exit 0
+          git commit -m "Git Action: auto-update commit info in Synthetic_Data_On_Merge.ipynb" || exit 0
           git push
