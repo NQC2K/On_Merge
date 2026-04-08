@@ -3,7 +3,7 @@ resources:
     synthetic_data_bank:
       name: synthetic_data_bank
       email_notifications:
-        no_alert_for_skipped_runs: true
+        no_alert_for_skipped_runs: false
       notification_settings:
         no_alert_for_skipped_runs: true
         no_alert_for_canceled_runs: true
