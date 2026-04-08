@@ -65,6 +65,7 @@ jobs:
                   cell['source'] = [
                       f'commit_id = "{os.environ["COMMIT_ID"]}"\n',
                       f'commit_msg = "{os.environ["COMMIT_MSG"].replace(chr(34), r\"\\\"\")}"\n',
+                      f'commit_msg = "{os.environ["COMMIT_MSG"].replace(chr(34), r"\\\"")}"\n',
                       f'commit_datetime = "{os.environ["COMMIT_DATETIME"]}"\n'
                   ]
                   break
