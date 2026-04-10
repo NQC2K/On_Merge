@@ -49,36 +49,28 @@ jobs:
           import json
           import os
 
-          notebook_path = 'src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb'
+          notebook_path = 'src/syntheticdatabank/Synthetic_Check_Commit_Info.ipynb'
 
           with open(notebook_path, 'r', encoding='utf-8') as f:
               notebook = json.load(f)
 
-          existing_commit_id = ""
-          existing_commit_msg = ""
+          updated = False
 
-          # Read existing curr_commit values
           for cell in notebook.get("cells", []):
-              source = "".join(cell.get("source", []))
-              if "curr_commit_id" in source:
-                  for line in cell["source"]:
-                      if line.strip().startswith("curr_commit_id"):
-                          existing_commit_id = line.split("=", 1)[1].strip().strip('"')
-                      elif line.strip().startswith("curr_commit_msg"):
-                          existing_commit_msg = line.split("=", 1)[1].strip().strip('"')
+              source_text = "".join(cell.get("source", []))
 
-          # Update notebook
-          for cell in notebook.get("cells", []):
-              source = "".join(cell.get("source", []))
-              if "curr_commit_id" in source:
+              if "COMMIT_ID" in source_text or "COMMIT_MSG" in source_text:
                   cell["source"] = [
-                      f'prev_commit_id = "{existing_commit_id}"\n',
-                      f'prev_commit_msg = "{existing_commit_msg.replace(chr(34), r"\\\"")}"\n',
-                      "\n",
-                      f'curr_commit_id = "{os.environ["COMMIT_ID"]}"\n',
-                      f'curr_commit_msg = "{os.environ["COMMIT_MSG"].replace(chr(34), r"\\\"")}"\n'
+                      f'COMMIT_ID = "{os.environ["COMMIT_ID"]}"\n',
+                      f'COMMIT_MSG = "{os.environ["COMMIT_MSG"].replace(chr(34), r"\\\"")}"\n'
                   ]
+                  updated = True
                   break
+
+          if not updated:
+              raise RuntimeError(
+                  "No cell containing COMMIT_ID / COMMIT_MSG found in Synthetic_Check_Commit_Info.ipynb"
+              )
 
           with open(notebook_path, 'w', encoding='utf-8') as f:
               json.dump(notebook, f, indent=1, ensure_ascii=False)
@@ -91,6 +83,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb
-          git commit -m "Auto-update commit info in Synthetic_Data_On_Merge.ipynb" || exit 0
+          git add src/syntheticdatabank/Synthetic_Check_Commit_Info.ipynb
+          git commit -m "Auto-update COMMIT_ID and COMMIT_MSG in Synthetic_Check_Commit_Info.ipynb" || exit 0
           git push

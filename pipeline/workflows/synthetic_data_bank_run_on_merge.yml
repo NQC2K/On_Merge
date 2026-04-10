@@ -1,0 +1,27 @@
+resources:
+  jobs:
+    synthetic_data_bank_run_on_merge:
+      name: synthetic_data_bank_run_on_merge
+      email_notifications:
+        on_failure:
+          - cuongquoc.nguyen2@dxc.com
+          - christine.dalmas@dxc.com
+        no_alert_for_skipped_runs: true
+      notification_settings:
+        no_alert_for_skipped_runs: true
+        no_alert_for_canceled_runs: true
+      tasks:
+        - task_key: Check_Commit_Info
+          notebook_task:
+            notebook_path: src/syntheticdatabank/Synthetic_Check_Commit_Info
+            source: GIT
+      git_source:
+        git_url: https://github.dxc.com/DXC-IT-AI-Enablement/productivity-agent
+        git_provider: gitHubEnterprise
+        git_branch: dev
+      queue:
+        enabled: true
+      parameters:
+        - name: environment
+          default: dev
+      performance_target: PERFORMANCE_OPTIMIZED
