@@ -49,7 +49,7 @@ jobs:
           import json
           import os
 
-          notebook_path = 'src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb'
+          notebook_path = 'src/syntheticdatabank/Synthetic_Data_Run_On_Merge.ipynb'
 
           with open(notebook_path, 'r', encoding='utf-8') as f:
               notebook = json.load(f)
@@ -91,6 +91,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb
-          git commit -m "Auto-update commit info in Synthetic_Data_On_Merge.ipynb" || exit 0
+          git add src/syntheticdatabank/Synthetic_Data_Run_On_Merge.ipynb
+          git commit -m "Auto-update commit info in Synthetic_Data_Run_On_Merge.ipynb" || exit 0
           git push
