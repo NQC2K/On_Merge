@@ -35,47 +35,59 @@ jobs:
         run: |
           COMMIT_ID=$(git rev-parse HEAD)
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
-          COMMIT_DATETIME=$(git log -1 --pretty=%cI)
 
           echo "commit_id=$COMMIT_ID" >> $GITHUB_OUTPUT
           echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
-          echo "commit_datetime=$COMMIT_DATETIME" >> $GITHUB_OUTPUT
 
       - name: Update notebook with commit info
         working-directory: ${{ github.event.pull_request.head.repo.name }}
         env:
           COMMIT_ID: ${{ steps.commit_info.outputs.commit_id }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.commit_msg }}
-          COMMIT_DATETIME: ${{ steps.commit_info.outputs.commit_datetime }}
         run: |
           python3 << 'EOF'
-          import json, os
+          import json
+          import os
 
           notebook_path = 'src/syntheticdatabank/Synthetic_Data_On_Merge.ipynb'
 
           with open(notebook_path, 'r', encoding='utf-8') as f:
               notebook = json.load(f)
 
-          # ✅ Always overwrite the commit info cell
-          for cell in notebook.get('cells', []):
-              source = ''.join(cell.get('source', []))
-              if 'commit_id =' in source:
-                  cell['source'] = [
-                      f'commit_id = "{os.environ["COMMIT_ID"]}"\n',
-                      f'commit_msg = "{os.environ["COMMIT_MSG"].replace(chr(34), r"\\\"")}"\n',
-                      f'commit_datetime = "{os.environ["COMMIT_DATETIME"]}"\n'
+          existing_commit_id = ""
+          existing_commit_msg = ""
+
+          # Read existing curr_commit values
+          for cell in notebook.get("cells", []):
+              source = "".join(cell.get("source", []))
+              if "curr_commit_id" in source:
+                  for line in cell["source"]:
+                      if line.strip().startswith("curr_commit_id"):
+                          existing_commit_id = line.split("=", 1)[1].strip().strip('"')
+                      elif line.strip().startswith("curr_commit_msg"):
+                          existing_commit_msg = line.split("=", 1)[1].strip().strip('"')
+
+          # Update notebook
+          for cell in notebook.get("cells", []):
+              source = "".join(cell.get("source", []))
+              if "curr_commit_id" in source:
+                  cell["source"] = [
+                      f'prev_commit_id = "{existing_commit_id}"\n',
+                      f'prev_commit_msg = "{existing_commit_msg.replace(chr(34), r"\\\"")}"\n',
+                      "\n",
+                      f'curr_commit_id = "{os.environ["COMMIT_ID"]}"\n',
+                      f'curr_commit_msg = "{os.environ["COMMIT_MSG"].replace(chr(34), r"\\\"")}"\n'
                   ]
                   break
 
           with open(notebook_path, 'w', encoding='utf-8') as f:
               json.dump(notebook, f, indent=1, ensure_ascii=False)
-              f.write('\n')
+              f.write("\n")
           EOF
 
       - name: Commit and push changes
         working-directory: ${{ github.event.pull_request.head.repo.name }}
         run: |
-          # ✅ Force commit to show as GitHub Actions
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
