@@ -13,34 +13,36 @@ on:
 
 jobs:
   update-commit-info:
+    # Only run for PRs from the same repository to prevent fork-based attacks
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
 
     steps:
-      - name: Clone PR branch manually
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git clone \
-            https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.event.pull_request.head.repo.full_name }}.git
-
-          cd $(basename "${{ github.event.pull_request.head.repo.full_name }}")
-          git checkout ${{ github.event.pull_request.head.ref }}
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 2
 
       - name: Get latest commit info
         id: commit_info
-        working-directory: ${{ github.event.pull_request.head.repo.name }}
         run: |
           COMMIT_ID=$(git rev-parse HEAD)
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
 
-          echo "commit_id=$COMMIT_ID" >> $GITHUB_OUTPUT
-          echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          # Use multiline output format to prevent injection
+          {
+            echo "commit_id=$COMMIT_ID"
+            echo "commit_msg<<EOF"
+            echo "$COMMIT_MSG"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Update notebook with commit info
-        working-directory: ${{ github.event.pull_request.head.repo.name }}
         env:
           COMMIT_ID: ${{ steps.commit_info.outputs.commit_id }}
           COMMIT_MSG: ${{ steps.commit_info.outputs.commit_msg }}
@@ -50,6 +52,14 @@ jobs:
           import os
 
           notebook_path = 'src/syntheticdatabank/Synthetic_Check_Commit_Info.ipynb'
+
+          # Safely get environment variables
+          commit_id = os.environ.get("COMMIT_ID", "")
+          commit_msg = os.environ.get("COMMIT_MSG", "")
+
+          # Properly escape strings for Python/JSON
+          def escape_string(s):
+              return s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
 
           with open(notebook_path, 'r', encoding='utf-8') as f:
               notebook = json.load(f)
@@ -61,8 +71,8 @@ jobs:
 
               if "COMMIT_ID" in source_text or "COMMIT_MSG" in source_text:
                   cell["source"] = [
-                      f'COMMIT_ID = "{os.environ["COMMIT_ID"]}"\n',
-                      f'COMMIT_MSG = "{os.environ["COMMIT_MSG"].replace(chr(34), r"\\\"")}"\n'
+                      f'COMMIT_ID = "{escape_string(commit_id)}"\n',
+                      f'COMMIT_MSG = "{escape_string(commit_msg)}"\n'
                   ]
                   updated = True
                   break
@@ -78,11 +88,16 @@ jobs:
           EOF
 
       - name: Commit and push changes
-        working-directory: ${{ github.event.pull_request.head.repo.name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add src/syntheticdatabank/Synthetic_Check_Commit_Info.ipynb
-          git commit -m "Auto-update COMMIT_ID and COMMIT_MSG in Synthetic_Check_Commit_Info.ipynb" || exit 0
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Auto-update COMMIT_ID and COMMIT_MSG in Synthetic_Check_Commit_Info.ipynb"
           git push
